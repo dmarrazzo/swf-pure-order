@@ -1,0 +1,71 @@
+id: 'simple-order'
+version: '0.3'
+specVersion: '0.8'
+name: 'Simple Order'
+description: 'Simple Order'
+start: Order Received
+# dataInputSchema: 
+functions:
+  - name: 'findPetsByStatus'
+    operation: 'specs/petstore.openapi.yaml#findPetsByStatus'
+    type: rest
+  - name: 'printMessage'
+    operation: 'sysout'
+    type: custom
+events:
+  - name: 'New Order Event'
+    source: 'client'
+    type: 'newOrderEvent'
+    kind: consumed
+    correlation:
+      - contextAttributeName: orderid
+  - name: 'Inventory Result Event'
+    source: 'client'
+    type: inventoryResult
+    kind: consumed  
+    correlation:
+      - contextAttributeName: orderid
+states:
+  - name: 'Order Received'
+    type: event
+    onEvents:
+      - eventRefs:
+          - New Order Event
+    transition: Check Inventory
+  - name: Check Inventory
+    type: callback
+    action:
+      name: findPetsByStatus
+      functionRef:
+        refName: findPetsByStatus
+        arguments:
+          status: 'available'
+    eventRef: "Inventory Result Event"
+    timeouts:
+      eventTimeout: PT1M
+    transition: Order Routing
+  - name: Order Routing
+    type: switch
+    dataConditions:
+      - condition: '.available'
+        transition: Ship items
+    defaultCondition:
+      transition: Forward to External Supplier
+  - name: Ship items
+    type: operation
+    actions:
+      - name: printAction
+        functionRef:
+          refName: printMessage
+          arguments:
+            message: 'Ship item'
+    end: true
+  - name: Forward to External Supplier
+    type: operation
+    actions:
+      - name: printAction
+        functionRef:
+          refName: printMessage
+          arguments:
+            message: 'Send to External Supplier'
+    end: true
